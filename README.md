@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **Working-line update — 27 September 2026:** Canonical ARGUS Ω remains **v0.35 / Omega-Hepta-Prime through T1422**. The post-canonical INTERNAL-SYNTHETIC / METHOD-LEVEL line is now recorded through **T1430-X62**, with **OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR** as the latest recovered working defence state. **T1431 remains reserved for materially independent external clean-room validation.** This is **not** v0.36, external validation, physical validation, deployment certification, or epistemic closure.
+
 ARGUS Ω — Universal Adversarial Scientific Mode
 
 «Adversarial epistemic-governance for claims, evidence, models, evaluators, and the machinery that validates them.»
@@ -5,6 +8,9 @@ ARGUS Ω — Universal Adversarial Scientific Mode
 Current canonical release: "ARGUS Ω v0.35 / Omega-Hepta-Prime"
 Canonical ledger: through "T1422"
 Latest separately preserved experimental continuation: "T1423 — Graph-Poisoning / False-Dependency Injection"
+Latest post-canonical working boundary: "T1430-X62"
+Latest post-canonical defence state: "OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR"
+T1431 status: "RESERVED FOR MATERIALLY INDEPENDENT EXTERNAL CLEAN-ROOM VALIDATION"
 Canonical epistemic status: "PROVISIONAL"
 Canonical validation domain: "INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY"
 External scientific validation: "NOT ESTABLISHED"

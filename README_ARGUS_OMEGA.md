@@ -3,6 +3,9 @@
 > **Current canonical state:** ARGUS Ω **v0.35 / Omega-Hepta-Prime**  
 > **Validation status:** **PROVISIONAL — INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY**  
 > **Ledger:** through **T1422**  
+> **Post-canonical working line:** through **T1430-X62**
+> **Latest recovered defence state:** **OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR**
+> **T1431:** **RESERVED FOR MATERIALLY INDEPENDENT EXTERNAL CLEAN-ROOM VALIDATION**
 > **External / physical / field validation:** **NOT ESTABLISHED**  
 > **High-consequence authority:** **NONE**  
 > **Reality Gate:** **CLOSED / WOUNDED**  

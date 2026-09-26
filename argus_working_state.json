@@ -1,0 +1,32 @@
+{
+  "project": "ARGUS OMEGA",
+  "generated_date": "2026-09-27",
+  "target_repository": "andrislukss23-pixel/ARGUS-OMEGA-PROTOCOL",
+  "canonical": {
+    "version": "v0.35",
+    "codename": "Omega-Hepta-Prime",
+    "ledger_through": "T1422",
+    "status": "PROVISIONAL",
+    "validation_domain": "INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY"
+  },
+  "post_canonical": {
+    "t1423_preserved_separately": true,
+    "latest_recovered_working_boundary": "T1430-X62",
+    "defence_patch": "OMEGA-HARD R61",
+    "disposition": "PROVISIONAL LIMITED_SURVIVOR",
+    "t1431": "RESERVED FOR MATERIALLY INDEPENDENT EXTERNAL CLEAN-ROOM VALIDATION",
+    "provenance_gaps": [
+      "T1430-X17 execution status",
+      "T1430-X51-X54 per-test detail",
+      "unmapped R9 continuation identifiers"
+    ],
+    "next_named_proposed_test": "T1430-X63"
+  },
+  "external_validation": "NOT ESTABLISHED",
+  "physical_validation": "NOT ESTABLISHED",
+  "field_validation": "NOT ESTABLISHED",
+  "deployment_certification": "NONE",
+  "reality_gate": "CLOSED / WOUNDED",
+  "reality_veto": "ABSOLUTE",
+  "high_consequence_operational_authority": "NONE"
+}

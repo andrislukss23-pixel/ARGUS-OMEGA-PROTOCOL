@@ -1,0 +1,17 @@
+name: ARGUS state invariants
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate canonical and post-canonical boundaries
+        run: python3 tools/validate_state.py
