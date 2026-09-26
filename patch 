@@ -1,0 +1,333 @@
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,5 @@
++> [!IMPORTANT]
++> **Working-line update — 26 September 2026:** Canonical ARGUS Ω remains **v0.35 / Omega-Hepta-Prime through T1422**. Post-canonical internal-synthetic work now extends through **T1430-X16 / OMEGA-HARD R15**, with the latest provisional research-candidate marker **R5-RC11 / PROVISIONAL LIMITED_SURVIVOR**. **T1431 remains reserved for materially independent external clean-room validation.** See `STATUS.md` and `post-canonical/T1430-X16/README.md`. This does **not** constitute v0.36, external validation, physical validation, deployment certification, or closure of unknown-unknown risk.
+ ARGUS Ω — Universal Adversarial Scientific Mode
+ 
+ «Adversarial epistemic-governance for claims, evidence, models, evaluators, and the machinery that validates them.»
+diff --git a/STATUS.md b/STATUS.md
+new file mode 100644
+--- /dev/null
++++ b/STATUS.md
+@@ -0,0 +1,121 @@
++# ARGUS Ω — Repository Status
++
++**Repository status date:** 26 September 2026
++
++## Canonical release
++
++- **Canonical version:** ARGUS Ω v0.35 / Omega-Hepta-Prime
++- **Canonical ledger boundary:** through T1422
++- **Canonical status:** PROVISIONAL
++- **Validation domain:** INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY
++- **External scientific validation:** NOT ESTABLISHED
++- **Physical-world validation:** NOT ESTABLISHED
++- **Field/deployment validation:** NOT ESTABLISHED
++- **Reality Gate:** CLOSED / WOUNDED
++- **Reality veto:** ABSOLUTE
++- **High-consequence operational authority:** NONE
++
++The canonical v0.35/T1422 record remains frozen. Later work does **not** silently rewrite or promote the canonical release.
++
++## Post-canonical experimental line
++
++- **T1423:** preserved separately as a post-canonical internal-synthetic experiment.
++- **Latest tested working-line boundary:** T1430-X16.
++- **Latest OMEGA-HARD defence patch:** R15.
++- **Latest provisional research-candidate marker:** R5-RC11 / PROVISIONAL LIMITED_SURVIVOR.
++- **T1431:** RESERVED for materially independent external clean-room validation; it has not been consumed by internal continuation work.
++
++## T1430-X15 carry-forward
++
++T1430-X15 attacked hypothesis-space and ontology adequacy. It retained the following boundaries:
++
++- best-in-arena does not imply adequate or true;
++- finite confirmation cannot uniquely identify a global law;
++- a restricted hypothesis support can concentrate confidence on a wrong model;
++- model families can share hidden grammar ancestry;
++- ontology/hyperedge blindness can hide interactions;
++- apparently irreducible noise may conceal omitted variables;
++- open-set unknowns can be observationally indistinguishable from known mechanisms;
++- finite-test non-identification remains a permanent boundary.
++
++The corresponding repairs include BEST≠ADEQUATE, a hypothesis-support ledger, ontology escape hatch, open-world admission, hidden-variable challenge, UNKNOWN-MECHANISM, and MODEL_GAP.
++
++## T1430-X16 / OMEGA-HARD R15
++
++T1430-X16 attacked the trusted-computing-base, reference-monitor, and execution-chain assumptions rather than only the top-level policy text.
++
++R15 records hardening around:
++
++1. **Effective-TCB closure** — any component whose arbitrary compromise can violate a protected invariant belongs to the effective TCB, regardless of whether it is labelled kernel, helper, parser, compiler, runtime, clock, config loader, authority verifier, or router.
++2. **Checker common-mode control** — redundant validators do not earn independence credit when they share specifications, code ancestry, model ancestry, data ancestry, infrastructure, calibration, governance, or build chains.
++3. **Build/bootstrap provenance** — source-level assurance is insufficient if compiler, package source, dependency resolution, build environment, signing path, runtime image, or bootstrap process is untrusted.
++4. **Total-domain / exception semantics** — protected invariants must remain defined across malformed input, timeout, partial failure, recovery, fallback, exceptional values, and unavailable dependencies.
++5. **Reference-monitor mediation boundary** — “complete mediation” is only licensed relative to the represented and observable action graph.
++6. **Human-meaning binding** — machine-checked policy must remain traceably bound to the intended human meaning of the protected rule.
++7. **Exception-path policy** — emergency, recovery, maintenance, migration, admin, fail-open, and override paths remain inside the threat model.
++8. **Self-attestation limits** — a component cannot independently establish its own trustworthiness, correctness, independence, or uncompromised state merely by attesting to itself.
++9. **Agentic control-plane / trust-laundering resistance** — authority, provenance, validator status, and “trusted” labels must not be transferable through dependent agents without evidence of the underlying trust roots.
++
++## R5-RC11 disposition
++
++The latest provisional research-candidate marker is:
++
++**R5-RC11 — PROVISIONAL LIMITED_SURVIVOR**
++
++This is an internal research marker, not a canonical release.
++
++R5 carries forward controls including:
++
++- dual adaptive/frozen baselines;
++- mosaic-drift checks;
++- trust-taint propagation;
++- authority-laundering protection;
++- epistemic-denial-of-service resistance;
++- verification-recursion ceilings;
++- content-addressed critical dependencies;
++- separation of uncertainty from containment;
++- cross-epoch audit logic;
++- diversity-debt tracking.
++
++The terminal scientific boundary remains open-world and permits **MODEL_GAP**.
++
++## Current epistemic boundary
++
++The strongest licensed description of the newest line is:
++
++> **POST-CANONICAL / INTERNAL-SYNTHETIC / METHOD-LEVEL research only.**
++
++It is **not**:
++
++- a v0.36 release;
++- an external replication;
++- a physical-world validation;
++- a deployment certification;
++- a safety certification;
++- proof that the attack grammar is complete;
++- proof that all hidden dependencies have been found;
++- proof that all unknown unknowns have been eliminated.
++
++## T1431 reservation
++
++T1431 is deliberately reserved for a materially independent external validation event.
++
++An eligible T1431 result would require explicit evidence of independence across the relevant dimensions, potentially including:
++
++- team;
++- code;
++- data;
++- hardware;
++- calibration;
++- infrastructure;
++- governance;
++- provenance;
++- contamination ancestry;
++- execution environment;
++- analysis path.
++
++Until that occurs, internal MAX-KILL work remains on the post-canonical T1430-X* line.
++
++## Constitutional boundary
++
++**Reality outranks the model. Survival is not proof. Internal synthetic success does not grant external authority.**
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,41 @@
++# Changelog
++
++This changelog separates **canonical releases** from **post-canonical experiments** so internal work cannot silently promote itself.
++
++## 2026-09-26 — Post-canonical working-line update
++
++### Added
++
++- Repository-level `STATUS.md`.
++- Explicit working-line boundary through **T1430-X16**.
++- **OMEGA-HARD Defence Patch R15** hardening record.
++- Explicit **R5-RC11 / PROVISIONAL LIMITED_SURVIVOR** research-candidate marker.
++- Explicit reservation of **T1431** for materially independent external clean-room validation.
++- Effective-TCB closure.
++- Checker common-mode controls.
++- Build/bootstrap provenance.
++- Total-domain / exception-semantics controls.
++- Reference-monitor mediation boundary.
++- Human-meaning binding.
++- Exception-path policy.
++- Self-attestation boundary.
++- Agentic control-plane / trust-laundering resistance.
++- Carry-forward of T1430-X15 hypothesis-space / ontology boundaries.
++
++### Not changed
++
++- Canonical release remains **ARGUS Ω v0.35 / Omega-Hepta-Prime**.
++- Canonical ledger remains frozen through **T1422**.
++- T1423 remains a separate post-canonical experiment.
++- External, physical, field, and deployment validation remain **NOT ESTABLISHED**.
++- Reality Gate remains **CLOSED / WOUNDED**.
++- High-consequence operational authority remains **NONE**.
++
++## 2026-09-25 — Canonical v0.35 record
++
++- Canonical release: **ARGUS Ω v0.35 / Omega-Hepta-Prime**.
++- Canonical ledger boundary: **T1422**.
++- Status: **PROVISIONAL**.
++- Validation: **INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY**.
++- Reality Gate: **CLOSED / WOUNDED**.
++- T1423 preserved separately as post-canonical.
+diff --git a/post-canonical/T1430-X16/README.md b/post-canonical/T1430-X16/README.md
+new file mode 100644
+--- /dev/null
++++ b/post-canonical/T1430-X16/README.md
+@@ -0,0 +1,115 @@
++# T1430-X16 — Effective-TCB / Reference-Monitor / Execution-Chain Extreme Proofing
++
++**Classification:** POST-CANONICAL / INTERNAL-SYNTHETIC / METHOD-LEVEL
++**Canonical release affected:** No
++**Canonical v0.35/T1422 promoted:** No
++**External validation claimed:** No
++**Physical or deployment validation claimed:** No
++**T1431 consumed:** No
++
++## Purpose
++
++T1430-X16 attacks the proposition that a small named constitutional kernel is sufficient to protect system invariants when the surrounding execution chain can still parse, compile, route, transform, time, configure, verify authority, or actuate protected actions.
++
++The attack moves the boundary from “small trusted kernel” to **effective TCB closure**.
++
++## Fresh wounds retained
++
++### 1. Effective-TCB closure failure
++
++A named kernel can remain correct while another component still violates the protected invariant.
++
++Examples include:
++
++- parser;
++- policy compiler;
++- configuration loader;
++- authority verifier;
++- build/bootstrap chain;
++- clock/time source;
++- runtime/interpreter;
++- dependency resolver;
++- actuator router;
++- recovery path;
++- exception handler.
++
++**Repair:** any component whose arbitrary compromise can violate a protected invariant is part of the effective TCB. Minimise and audit the dependency closure, not just the labelled kernel.
++
++### 2. Checker common-mode failure
++
++Multiple checkers do not provide independent assurance merely because there are multiple processes or implementations.
++
++Shared roots can dominate nominal redundancy:
++
++- same specification error;
++- same training/model ancestry;
++- same parser or library;
++- same benchmark;
++- same data;
++- same infrastructure;
++- same governance;
++- same build chain.
++
++**Repair:** track specification/checker ancestry and prohibit independence inflation.
++
++### 3. Build/bootstrap provenance gap
++
++Correct source does not imply a correct executable.
++
++**Repair:** extend provenance through source, compiler, dependencies, build environment, package origin, signing, artifact identity, runtime image, and bootstrap chain.
++
++### 4. Total-domain / exception-semantics gap
++
++A rule defined only on the happy path is not a total invariant.
++
++**Repair:** define behaviour for malformed input, timeout, partial failure, exceptional values, unavailable dependencies, recovery, fallback, and fail-open/fail-closed transitions.
++
++### 5. Reference-monitor completeness overclaim
++
++“Complete mediation” can only be claimed relative to the represented and observable action graph.
++
++**Repair:** record the mediation boundary and treat unrepresented actions, hidden actuators, and side channels as unresolved.
++
++### 6. Human-meaning / machine-policy mismatch
++
++A checker can perfectly enforce the wrong formalization.
++
++**Repair:** preserve a traceable binding between human-intended invariants, formal semantics, executable policy, and observed action.
++
++### 7. Exception-path authority escape
++
++Emergency, maintenance, recovery, migration, admin, and override routes can bypass the normal policy path.
++
++**Repair:** include exception paths inside the same authority, provenance, audit, and reality-veto boundary.
++
++### 8. Self-attestation failure
++
++A component cannot make itself trustworthy by reporting that it is trustworthy.
++
++**Repair:** treat self-attestation as evidence about a report, not independent evidence that the underlying state is true.
++
++### 9. Agentic trust laundering
++
++A chain of dependent agents can repeatedly relabel authority, provenance, or trust until weak evidence appears institutionally strong.
++
++**Repair:** preserve trust-root lineage, taint inherited authority, prevent validator status from being self-propagating, and require explicit evidence for independence claims.
++
++## OMEGA-HARD Defence Patch R15 disposition
++
++T1430-X16 supports **OMEGA-HARD Defence Patch R15** as a provisional internal hardening state only.
++
++The strongest defensible statement is:
++
++> No violation was found within the represented internal-synthetic threat model after the R15 repairs and recorded attacks. Outside that envelope — including hidden execution paths, external implementations, physical systems, independent clean-room implementations, and unmodelled ontology — the result remains UNRESOLVED or MODEL_GAP.
++
++## Research-candidate marker
++
++The latest recorded provisional research candidate after this line is:
++
++**R5-RC11 / PROVISIONAL LIMITED_SURVIVOR**
++
++This marker is not a canonical release number and does not alter v0.35/T1422.
++
++## Next external boundary
++
++**T1431 remains reserved** for materially independent external clean-room validation.
+diff --git a/argus_working_state.json b/argus_working_state.json
+new file mode 100644
+--- /dev/null
++++ b/argus_working_state.json
+@@ -0,0 +1,27 @@
++{
++  "project": "ARGUS OMEGA",
++  "generated_date": "2026-09-26",
++  "target_repository": "andrislukss23-pixel/ARGUS-OMEGA-PROTOCOL",
++  "canonical": {
++    "version": "v0.35",
++    "codename": "Omega-Hepta-Prime",
++    "ledger_through": "T1422",
++    "status": "PROVISIONAL",
++    "validation_domain": "INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY"
++  },
++  "post_canonical": {
++    "t1423_preserved_separately": true,
++    "latest_working_boundary": "T1430-X16",
++    "defence_patch": "OMEGA-HARD R15",
++    "research_candidate": "R5-RC11",
++    "research_candidate_disposition": "PROVISIONAL LIMITED_SURVIVOR",
++    "t1431": "RESERVED FOR MATERIALLY INDEPENDENT EXTERNAL CLEAN-ROOM VALIDATION"
++  },
++  "external_validation": "NOT ESTABLISHED",
++  "physical_validation": "NOT ESTABLISHED",
++  "field_validation": "NOT ESTABLISHED",
++  "deployment_certification": "NONE",
++  "reality_gate": "CLOSED / WOUNDED",
++  "reality_veto": "ABSOLUTE",
++  "high_consequence_operational_authority": "NONE"
++}
