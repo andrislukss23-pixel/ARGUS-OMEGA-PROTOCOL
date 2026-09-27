@@ -1,0 +1,788 @@
+--- a/tools/validate_state.py
++++ b/tools/validate_state.py
+@@ -1,47 +1,298 @@
+ #!/usr/bin/env python3
+-"""Validate ARGUS repository status invariants using only the Python standard library."""
++"""Hardened validation of ARGUS repository state invariants.
++
++Scope: repository-consistency checks only. Passing this validator does not
++establish external, physical, field, or deployment validation.
++"""
+ 
+ from __future__ import annotations
++
++import hashlib
+ import json
++import re
++import sys
+ from pathlib import Path
+-
+-ROOT = Path(__file__).resolve().parents[1]
+-STATE = json.loads((ROOT / "argus_working_state.json").read_text(encoding="utf-8"))
+-errors: list[str] = []
+-
+-def require(condition: bool, message: str) -> None:
++from typing import Any
++
++CANONICAL_VERSION = "v0.35"
++CANONICAL_LEDGER = "T1422"
++WORKING_BOUNDARY = "T1430-X62"
++DEFENCE_PATCH = "OMEGA-HARD R61"
++DISPOSITION = "PROVISIONAL LIMITED_SURVIVOR"
++HISTORICAL_PATCH_BLOB_SHA = "39be08a5817f6299c4203c287444050620c465d1"
++
++TOP_LEVEL_KEYS = {
++    "project",
++    "generated_date",
++    "target_repository",
++    "canonical",
++    "post_canonical",
++    "external_validation",
++    "physical_validation",
++    "field_validation",
++    "deployment_certification",
++    "reality_gate",
++    "reality_veto",
++    "high_consequence_operational_authority",
++}
++CANONICAL_KEYS = {
++    "version",
++    "codename",
++    "ledger_through",
++    "status",
++    "validation_domain",
++}
++POST_CANONICAL_KEYS = {
++    "t1423_preserved_separately",
++    "latest_recovered_working_boundary",
++    "defence_patch",
++    "disposition",
++    "t1431",
++    "provenance_gaps",
++    "next_named_proposed_test",
++}
++CORE_DOCS = ("README.md", "README_ARGUS_OMEGA.md", "STATUS.md")
++TEXT_SUFFIXES = {".md", ".txt"}
++
++
++class DuplicateKeyError(ValueError):
++    pass
++
++
++def _no_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
++    out: dict[str, Any] = {}
++    for key, value in pairs:
++        if key in out:
++            raise DuplicateKeyError(f"duplicate JSON key: {key}")
++        out[key] = value
++    return out
++
++
++def strict_json_load(path: Path) -> Any:
++    return json.loads(
++        path.read_text(encoding="utf-8"),
++        object_pairs_hook=_no_duplicate_pairs,
++    )
++
++
++def git_blob_sha1(data: bytes) -> str:
++    header = f"blob {len(data)}\0".encode("ascii")
++    return hashlib.sha1(header + data).hexdigest()
++
++
++def _within(root: Path, candidate: Path) -> bool:
++    root_resolved = root.resolve()
++    candidate_resolved = candidate.resolve(strict=False)
++    return candidate_resolved == root_resolved or root_resolved in candidate_resolved.parents
++
++
++def safe_file(root: Path, rel: str, errors: list[str]) -> Path | None:
++    path = root / rel
++    if path.is_symlink():
++        errors.append(f"{rel}: symlink substitution is not allowed")
++        return None
++    if not path.exists():
++        errors.append(f"{rel}: required file missing")
++        return None
++    if not path.is_file():
++        errors.append(f"{rel}: expected regular file")
++        return None
++    if not _within(root, path):
++        errors.append(f"{rel}: resolves outside repository root")
++        return None
++    return path
++
++
++def require(condition: bool, message: str, errors: list[str]) -> None:
+     if not condition:
+         errors.append(message)
+ 
+-canonical = STATE["canonical"]
+-post = STATE["post_canonical"]
+-
+-require(canonical["version"] == "v0.35", "canonical version must remain v0.35")
+-require(canonical["ledger_through"] == "T1422", "canonical ledger must remain frozen through T1422")
+-require(canonical["status"] == "PROVISIONAL", "canonical status must remain PROVISIONAL")
+-require(post["latest_recovered_working_boundary"] == "T1430-X62", "working boundary must be T1430-X62")
+-require(post["defence_patch"] == "OMEGA-HARD R61", "latest recovered defence patch must be OMEGA-HARD R61")
+-require(post["disposition"] == "PROVISIONAL LIMITED_SURVIVOR", "R61 disposition mismatch")
+-require(post["t1431"].startswith("RESERVED"), "T1431 must remain reserved")
+-require(STATE["external_validation"] == "NOT ESTABLISHED", "external validation must not be silently promoted")
+-require(STATE["reality_veto"] == "ABSOLUTE", "reality veto must remain ABSOLUTE")
+-
+-for rel in ("README.md", "README_ARGUS_OMEGA.md", "STATUS.md"):
+-    text = (ROOT / rel).read_text(encoding="utf-8")
+-    require("v0.35" in text, f"{rel}: missing v0.35 canonical marker")
+-    require("T1422" in text, f"{rel}: missing T1422 canonical boundary")
+-    require("T1430-X62" in text, f"{rel}: missing T1430-X62 working boundary")
+-    require("T1431" in text and "RESERVED" in text, f"{rel}: T1431 reservation not explicit")
+-
+-gaps = (ROOT / "docs" / "PROVENANCE_GAPS.md").read_text(encoding="utf-8")
+-require("DO NOT INVENT DETAILS" in gaps, "provenance-gap anti-invention control missing")
+-
+-if errors:
+-    for error in errors:
+-        print(f"FAIL: {error}")
+-    raise SystemExit(1)
+-
+-print("ARGUS repository-state invariants: PASS")
+-print("canonical=v0.35/T1422")
+-print("post_canonical=T1430-X62/R61 PROVISIONAL LIMITED_SURVIVOR")
+-print("T1431=RESERVED")
++
++def exact_keys(obj: Any, expected: set[str], label: str, errors: list[str]) -> None:
++    if not isinstance(obj, dict):
++        errors.append(f"{label}: expected object")
++        return
++    missing = expected - set(obj)
++    extra = set(obj) - expected
++    if missing:
++        errors.append(f"{label}: missing keys: {', '.join(sorted(missing))}")
++    if extra:
++        errors.append(f"{label}: unexpected keys: {', '.join(sorted(extra))}")
++
++
++def _scan_declarations(rel: str, text: str, errors: list[str]) -> None:
++    checks = (
++        (
++            re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?canonical(?: release)? version(?:\*\*)?\s*[:=]\s*[^\n]{0,40}?([vV]\d+\.\d+)", re.M),
++            CANONICAL_VERSION,
++            "canonical version",
++        ),
++        (
++            re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?canonical ledger(?: boundary)?(?:\*\*)?\s*[:=]\s*[^\n]{0,40}?(T\d+)", re.M),
++            CANONICAL_LEDGER,
++            "canonical ledger",
++        ),
++        (
++            re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?(?:recovered working-line boundary|latest recovered working boundary)(?:\*\*)?\s*[:=]\s*[^\n]{0,40}?(T1430-X\d+)", re.M),
++            WORKING_BOUNDARY,
++            "working boundary",
++        ),
++        (
++            re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?(?:latest recovered defence state|defence patch)(?:\*\*)?\s*[:=]\s*[^\n]{0,40}?(OMEGA-HARD R\d+)", re.M),
++            DEFENCE_PATCH,
++            "defence patch",
++        ),
++    )
++    for pattern, expected, label in checks:
++        for match in pattern.finditer(text):
++            value = match.group(1)
++            if value.lower() != expected.lower():
++                errors.append(f"{rel}: contradictory {label} declaration: {value} != {expected}")
++
++    external_promoted = re.compile(
++        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?(?:external(?: scientific)? validation)(?:\*\*)?\s*[:=]\s*(ESTABLISHED|VALIDATED|PASS(?:ED)?)\b"
++    )
++    if external_promoted.search(text):
++        errors.append(f"{rel}: external validation is silently promoted")
++
++    t1431_consumed = re.compile(
++        r"(?im)^\s*(?:[-*]\s*)?.*\bT1431\b.*\b(EXECUTED|PASSED|FAILED|CONSUMED|COMPLETED)\b"
++    )
++    for match in t1431_consumed.finditer(text):
++        line = match.group(0)
++        if not re.search(r"\b(?:NO|NOT|NEVER|UNEXECUTED)\b", line, re.I):
++            errors.append(f"{rel}: T1431 reservation contradicted by: {line.strip()[:160]}")
++
++
++def _iter_authoritative_text_files(root: Path) -> list[Path]:
++    files: list[Path] = []
++    for path in root.rglob("*"):
++        if ".git" in path.parts or path.name == "patch ":
++            continue
++        if path.is_file() and path.suffix.lower() in TEXT_SUFFIXES:
++            files.append(path)
++    return files
++
++
++def validate_repo(
++    root: Path,
++    *,
++    expected_patch_blob_sha: str = HISTORICAL_PATCH_BLOB_SHA,
++    check_ci_contract: bool = True,
++) -> list[str]:
++    root = root.resolve()
++    errors: list[str] = []
++
++    state_path = safe_file(root, "argus_working_state.json", errors)
++    if state_path is None:
++        return errors
++    try:
++        state = strict_json_load(state_path)
++    except DuplicateKeyError as exc:
++        return [f"argus_working_state.json: {exc}"]
++    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
++        return [f"argus_working_state.json: invalid JSON: {exc}"]
++
++    exact_keys(state, TOP_LEVEL_KEYS, "state", errors)
++    canonical = state.get("canonical")
++    post = state.get("post_canonical")
++    exact_keys(canonical, CANONICAL_KEYS, "canonical", errors)
++    exact_keys(post, POST_CANONICAL_KEYS, "post_canonical", errors)
++    if not isinstance(canonical, dict) or not isinstance(post, dict):
++        return errors
++
++    require(state.get("project") == "ARGUS OMEGA", "project identifier mismatch", errors)
++    require(canonical.get("version") == CANONICAL_VERSION, "canonical version must remain v0.35", errors)
++    require(canonical.get("ledger_through") == CANONICAL_LEDGER, "canonical ledger must remain frozen through T1422", errors)
++    require(canonical.get("status") == "PROVISIONAL", "canonical status must remain PROVISIONAL", errors)
++    require(
++        canonical.get("validation_domain") == "INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY",
++        "canonical validation domain mismatch",
++        errors,
++    )
++    require(post.get("latest_recovered_working_boundary") == WORKING_BOUNDARY, "working boundary must be T1430-X62", errors)
++    require(post.get("defence_patch") == DEFENCE_PATCH, "latest recovered defence patch must be OMEGA-HARD R61", errors)
++    require(post.get("disposition") == DISPOSITION, "R61 disposition mismatch", errors)
++    require(isinstance(post.get("t1431"), str) and post["t1431"].startswith("RESERVED"), "T1431 must remain reserved", errors)
++    require(post.get("t1423_preserved_separately") is True, "T1423 separate-preservation flag must remain true", errors)
++    require(isinstance(post.get("provenance_gaps"), list), "provenance_gaps must remain a list", errors)
++    require(state.get("external_validation") == "NOT ESTABLISHED", "external validation must not be silently promoted", errors)
++    require(state.get("physical_validation") == "NOT ESTABLISHED", "physical validation must not be silently promoted", errors)
++    require(state.get("field_validation") == "NOT ESTABLISHED", "field validation must not be silently promoted", errors)
++    require(state.get("deployment_certification") == "NONE", "deployment certification must remain NONE", errors)
++    require(state.get("reality_gate") == "CLOSED / WOUNDED", "reality gate must remain CLOSED / WOUNDED", errors)
++    require(state.get("reality_veto") == "ABSOLUTE", "reality veto must remain ABSOLUTE", errors)
++    require(state.get("high_consequence_operational_authority") == "NONE", "high-consequence operational authority must remain NONE", errors)
++
++    for rel in CORE_DOCS:
++        path = safe_file(root, rel, errors)
++        if path is None:
++            continue
++        text = path.read_text(encoding="utf-8")
++        require(CANONICAL_VERSION in text, f"{rel}: missing v0.35 canonical marker", errors)
++        require(CANONICAL_LEDGER in text, f"{rel}: missing T1422 canonical boundary", errors)
++        require(WORKING_BOUNDARY in text, f"{rel}: missing T1430-X62 working boundary", errors)
++        require("T1431" in text and "RESERVED" in text, f"{rel}: T1431 reservation not explicit", errors)
++
++    gaps_path = safe_file(root, "docs/PROVENANCE_GAPS.md", errors)
++    if gaps_path is not None:
++        gaps = gaps_path.read_text(encoding="utf-8")
++        require("DO NOT INVENT DETAILS" in gaps, "provenance-gap anti-invention control missing", errors)
++
++    patch_path = safe_file(root, "patch ", errors)
++    if patch_path is not None:
++        actual_blob = git_blob_sha1(patch_path.read_bytes())
++        require(
++            actual_blob == expected_patch_blob_sha,
++            f"patch : historical provenance blob changed ({actual_blob})",
++            errors,
++        )
++
++    for path in _iter_authoritative_text_files(root):
++        rel = path.relative_to(root).as_posix()
++        if path.is_symlink():
++            errors.append(f"{rel}: symlink substitution is not allowed")
++            continue
++        if not _within(root, path):
++            errors.append(f"{rel}: resolves outside repository root")
++            continue
++        try:
++            _scan_declarations(rel, path.read_text(encoding="utf-8"), errors)
++        except UnicodeDecodeError:
++            errors.append(f"{rel}: expected UTF-8 text")
++
++    if check_ci_contract:
++        validator_path = safe_file(root, "tools/validate_state.py", errors)
++        workflow_path = safe_file(root, ".github/workflows/argus-state.yml", errors)
++        test_path = safe_file(root, "tools/test_validate_state.py", errors)
++        if validator_path is not None and workflow_path is not None and test_path is not None:
++            validator_sha256 = hashlib.sha256(validator_path.read_bytes()).hexdigest()
++            workflow = workflow_path.read_text(encoding="utf-8")
++            require(f"{validator_sha256}  tools/validate_state.py" in workflow, "CI validator SHA-256 pin mismatch", errors)
++            require("actions/checkout@v7.0.1" in workflow, "CI checkout action must be pinned to v7.0.1", errors)
++            require("persist-credentials: false" in workflow, "CI must disable persisted checkout credentials", errors)
++            require("timeout-minutes: 5" in workflow, "CI validation job must have a 5-minute timeout", errors)
++            require("python3 tools/test_validate_state.py -v" in workflow, "CI adversarial validator suite is not executed", errors)
++            require("python3 tools/validate_state.py" in workflow, "CI repository-state validator is not executed", errors)
++
++    return errors
++
++
++def main() -> int:
++    root = Path(__file__).resolve().parents[1]
++    errors = validate_repo(root)
++    if errors:
++        for error in errors:
++            print(f"FAIL: {error}")
++        return 1
++
++    print("ARGUS repository-state invariants: PASS")
++    print("canonical=v0.35/T1422")
++    print("post_canonical=T1430-X62/R61 PROVISIONAL LIMITED_SURVIVOR")
++    print("T1431=RESERVED")
++    print("validator_hardening=duplicate-key/schema/symlink/contradiction/provenance/CI-integrity checks")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+--- a/tools/test_validate_state.py
++++ b/tools/test_validate_state.py
+@@ -0,0 +1,216 @@
++#!/usr/bin/env python3
++"""Adversarial regression tests for the ARGUS repository-state validator."""
++
++from __future__ import annotations
++
++import json
++import sys
++import tempfile
++import unittest
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import validate_state as v  # noqa: E402
++
++
++BASE_STATE = {
++    "project": "ARGUS OMEGA",
++    "generated_date": "2026-09-27",
++    "target_repository": "andrislukss23-pixel/ARGUS-OMEGA-PROTOCOL",
++    "canonical": {
++        "version": "v0.35",
++        "codename": "Omega-Hepta-Prime",
++        "ledger_through": "T1422",
++        "status": "PROVISIONAL",
++        "validation_domain": "INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY",
++    },
++    "post_canonical": {
++        "t1423_preserved_separately": True,
++        "latest_recovered_working_boundary": "T1430-X62",
++        "defence_patch": "OMEGA-HARD R61",
++        "disposition": "PROVISIONAL LIMITED_SURVIVOR",
++        "t1431": "RESERVED FOR MATERIALLY INDEPENDENT EXTERNAL CLEAN-ROOM VALIDATION",
++        "provenance_gaps": [
++            "T1430-X17 execution status",
++            "T1430-X51-X54 per-test detail",
++            "unmapped R9 continuation identifiers",
++        ],
++        "next_named_proposed_test": "T1430-X63",
++    },
++    "external_validation": "NOT ESTABLISHED",
++    "physical_validation": "NOT ESTABLISHED",
++    "field_validation": "NOT ESTABLISHED",
++    "deployment_certification": "NONE",
++    "reality_gate": "CLOSED / WOUNDED",
++    "reality_veto": "ABSOLUTE",
++    "high_consequence_operational_authority": "NONE",
++}
++
++
++class ValidatorAdversarialTests(unittest.TestCase):
++    def setUp(self) -> None:
++        self.tmp = tempfile.TemporaryDirectory()
++        self.root = Path(self.tmp.name)
++        (self.root / "docs").mkdir()
++        (self.root / "tools").mkdir()
++        self.patch_bytes = b"historical patch fixture\n"
++        (self.root / "patch ").write_bytes(self.patch_bytes)
++        self.patch_sha = v.git_blob_sha1(self.patch_bytes)
++        self.write_state(BASE_STATE)
++        core = (
++            "# ARGUS\n"
++            "Canonical version: v0.35\n"
++            "Canonical ledger boundary: T1422\n"
++            "Recovered working-line boundary: T1430-X62\n"
++            "Latest recovered defence state: OMEGA-HARD R61\n"
++            "T1431: RESERVED\n"
++            "External validation: NOT ESTABLISHED\n"
++        )
++        for rel in v.CORE_DOCS:
++            (self.root / rel).write_text(core, encoding="utf-8")
++        (self.root / "docs" / "PROVENANCE_GAPS.md").write_text(
++            "# Gaps\nDO NOT INVENT DETAILS\n", encoding="utf-8"
++        )
++
++    def tearDown(self) -> None:
++        self.tmp.cleanup()
++
++    def write_state(self, state: dict) -> None:
++        (self.root / "argus_working_state.json").write_text(
++            json.dumps(state, indent=2) + "\n", encoding="utf-8"
++        )
++
++    def errors(self) -> list[str]:
++        return v.validate_repo(
++            self.root,
++            expected_patch_blob_sha=self.patch_sha,
++            check_ci_contract=False,
++        )
++
++    def mutate(self, path: tuple[str, ...], value) -> None:
++        state = json.loads(json.dumps(BASE_STATE))
++        target = state
++        for part in path[:-1]:
++            target = target[part]
++        target[path[-1]] = value
++        self.write_state(state)
++
++    def assert_rejected(self, needle: str) -> None:
++        errors = self.errors()
++        self.assertTrue(any(needle in e for e in errors), errors)
++
++    # 1
++    def test_01_baseline_passes(self):
++        self.assertEqual(self.errors(), [])
++
++    # 2
++    def test_02_duplicate_top_level_key_rejected(self):
++        text = json.dumps(BASE_STATE)
++        text = text[:-1] + ', "project": "FORGED"}'
++        (self.root / "argus_working_state.json").write_text(text, encoding="utf-8")
++        self.assert_rejected("duplicate JSON key: project")
++
++    # 3
++    def test_03_duplicate_nested_key_rejected(self):
++        text = json.dumps(BASE_STATE)
++        text = text.replace('"version": "v0.35"', '"version": "v0.35", "version": "v9.99"', 1)
++        (self.root / "argus_working_state.json").write_text(text, encoding="utf-8")
++        self.assert_rejected("duplicate JSON key: version")
++
++    # 4
++    def test_04_unknown_top_level_key_rejected(self):
++        state = json.loads(json.dumps(BASE_STATE))
++        state["shadow_authority"] = "yes"
++        self.write_state(state)
++        self.assert_rejected("unexpected keys")
++
++    # 5
++    def test_05_missing_required_key_rejected(self):
++        state = json.loads(json.dumps(BASE_STATE))
++        del state["reality_veto"]
++        self.write_state(state)
++        self.assert_rejected("missing keys")
++
++    # 6
++    def test_06_canonical_version_drift_rejected(self):
++        self.mutate(("canonical", "version"), "v0.36")
++        self.assert_rejected("canonical version")
++
++    # 7
++    def test_07_canonical_ledger_drift_rejected(self):
++        self.mutate(("canonical", "ledger_through"), "T1431")
++        self.assert_rejected("canonical ledger")
++
++    # 8
++    def test_08_canonical_status_promotion_rejected(self):
++        self.mutate(("canonical", "status"), "FINAL")
++        self.assert_rejected("canonical status")
++
++    # 9
++    def test_09_working_boundary_drift_rejected(self):
++        self.mutate(("post_canonical", "latest_recovered_working_boundary"), "T1430-X63")
++        self.assert_rejected("working boundary")
++
++    # 10
++    def test_10_defence_patch_drift_rejected(self):
++        self.mutate(("post_canonical", "defence_patch"), "OMEGA-HARD R62")
++        self.assert_rejected("defence patch")
++
++    # 11
++    def test_11_disposition_drift_rejected(self):
++        self.mutate(("post_canonical", "disposition"), "PROVEN")
++        self.assert_rejected("disposition")
++
++    # 12
++    def test_12_t1431_unreserved_rejected(self):
++        self.mutate(("post_canonical", "t1431"), "EXECUTED")
++        self.assert_rejected("T1431 must remain reserved")
++
++    # 13
++    def test_13_external_validation_promotion_rejected(self):
++        self.mutate(("external_validation",), "ESTABLISHED")
++        self.assert_rejected("external validation")
++
++    # 14
++    def test_14_reality_veto_weakening_rejected(self):
++        self.mutate(("reality_veto",), "OPTIONAL")
++        self.assert_rejected("reality veto")
++
++    # 15
++    def test_15_state_symlink_substitution_rejected(self):
++        target = self.root / "state-target.json"
++        target.write_text(json.dumps(BASE_STATE), encoding="utf-8")
++        (self.root / "argus_working_state.json").unlink()
++        (self.root / "argus_working_state.json").symlink_to(target)
++        self.assert_rejected("symlink substitution")
++
++    # 16
++    def test_16_core_doc_symlink_substitution_rejected(self):
++        target = self.root / "readme-target.md"
++        target.write_text((self.root / "README.md").read_text(), encoding="utf-8")
++        (self.root / "README.md").unlink()
++        (self.root / "README.md").symlink_to(target)
++        self.assert_rejected("symlink substitution")
++
++    # 17
++    def test_17_unscanned_style_doc_canonical_contradiction_rejected(self):
++        (self.root / "docs" / "extra.md").write_text(
++            "Canonical version: v0.36\n", encoding="utf-8"
++        )
++        self.assert_rejected("contradictory canonical version")
++
++    # 18
++    def test_18_unscanned_style_doc_working_boundary_contradiction_rejected(self):
++        (self.root / "docs" / "extra.md").write_text(
++            "Recovered working-line boundary: T1430-X99\n", encoding="utf-8"
++        )
++        self.assert_rejected("contradictory working boundary")
++
++    # 19
++    def test_19_historical_patch_tamper_rejected(self):
++        (self.root / "patch ").write_bytes(self.patch_bytes + b"tamper\n")
++        self.assert_rejected("historical provenance blob changed")
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- a/.github/workflows/argus-state.yml
++++ b/.github/workflows/argus-state.yml
+@@ -11,7 +11,14 @@
+ jobs:
+   validate-state:
+     runs-on: ubuntu-latest
++    timeout-minutes: 5
+     steps:
+-      - uses: actions/checkout@v4
++      - uses: actions/checkout@v7.0.1
++        with:
++          persist-credentials: false
++      - name: Verify validator integrity
++        run: echo "28694aa92b937f5d15af2629c782d93410dea74ddecbe3d58464b0a302ba6bcc  tools/validate_state.py" | sha256sum -c -
++      - name: Run adversarial validator regression suite
++        run: python3 tools/test_validate_state.py -v
+       - name: Validate canonical and post-canonical boundaries
+         run: python3 tools/validate_state.py
+--- a/docs/VALIDATOR_HARDENING_2026-09-27.md
++++ b/docs/VALIDATOR_HARDENING_2026-09-27.md
+@@ -0,0 +1,31 @@
++# ARGUS Ω — Validator / CI Adversarial Hardening — 27 September 2026
++
++**Classification:** POST-CANONICAL / INTERNAL-SYNTHETIC / METHOD-LEVEL
++**Canonical impact:** NONE
++**Canonical release:** v0.35 / Omega-Hepta-Prime through T1422
++**Post-canonical working state:** T1430-X62 / OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR
++**T1431:** RESERVED for materially independent external clean-room validation
++
++## Five validator bypass classes found
++
++1. **Duplicate JSON keys** could allow a parser-dependent state to appear valid while different readers select different values.
++2. **Unscanned-document contradictions** could preserve a valid machine state while a separate repository document silently claimed a conflicting version, ledger boundary, defence state, or validation status.
++3. **Symlink substitution** could redirect a protected repository path to different content.
++4. **Document/state divergence** could let human-readable status and machine-readable state disagree.
++5. **Validator self-tamper** could weaken the checker itself unless CI binds execution to an expected validator digest.
++
++## Repair contract
++
++The hardened validator package adds strict duplicate-key rejection, exact schema checks, path/symlink controls, recursive authoritative-document contradiction checks, preservation of the historical root patch blob, machine/document cross-checks, and a CI integrity binding for the validator.
++
++The CI design pins checkout to actions/checkout v7.0.1, disables persisted checkout credentials, uses a five-minute job timeout, verifies the validator SHA-256 before execution, runs an adversarial regression suite, and then runs repository-state validation.
++
++## Adversarial regression suite
++
++Nineteen tests are retained to cover baseline acceptance plus duplicate keys, schema drift, canonical-version drift, canonical-ledger drift, status promotion, working-boundary drift, defence-patch drift, disposition drift, T1431 consumption, external-validation promotion, reality-veto weakening, symlink substitution, contradictory documents, and historical-patch tamper.
++
++## Epistemic boundary
++
++Passing this validator establishes repository-consistency properties only. It does not establish external truth, physical validation, field validation, deployment fitness, complete attack-grammar coverage, or immunity to a writer that can coherently modify both code and its trust anchor.
++
++**Reality outranks the model. Survival is not proof.**
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,6 +1,25 @@
+ # Changelog
+ 
+ This changelog separates **canonical releases** from **post-canonical experiments** so internal work cannot silently promote itself.
++
++## 2026-09-27 — Validator / CI adversarial hardening
++
++### Added / updated
++
++- Hardened repository validator against five reproduced bypass classes: duplicate JSON keys, unscanned-document contradictions, symlink substitution, document/state divergence, and validator self-tamper.
++- Added exact schema checks, path/symlink controls, authoritative-document contradiction scans, and historical root `patch ` blob protection.
++- Added **19 adversarial regression tests** covering baseline acceptance and mutation/tamper cases.
++- Pinned CI checkout to **actions/checkout v7.0.1**, disabled persisted checkout credentials, and added a five-minute job timeout.
++- Added SHA-256 binding between CI and `tools/validate_state.py` so a one-file validator modification fails closed.
++- Added `docs/VALIDATOR_HARDENING_2026-09-27.md`.
++
++### Not changed
++
++- Canonical release remains **ARGUS Ω v0.35 / Omega-Hepta-Prime through T1422**.
++- Post-canonical working state remains **T1430-X62 / OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR**.
++- **T1431 remains RESERVED** for materially independent external clean-room validation.
++- External, physical, field, and deployment validation remain **NOT ESTABLISHED**.
++- Reality veto remains **ABSOLUTE**.
+ 
+ ## 2026-09-27 — R61 working-line patch
+ 
+--- a/STATUS.md
++++ b/STATUS.md
+@@ -77,6 +77,14 @@
+ 
+ The root file named `patch ` is a historical unapplied diff snapshot from the earlier X16/R15 working state. It is retained as provenance evidence but is superseded operationally by the applied repository state described here.
+ 
++## Validator / CI hardening — 27 September 2026
++
++The repository checker now has an adversarial hardening package aimed at five reproduced bypass classes: duplicate JSON keys, unscanned-document contradictions, symlink substitution, document/state divergence, and validator self-tamper.
++
++The package adds strict duplicate-key and schema checks, protected-path/symlink rejection, recursive authoritative-document declaration checks, historical root `patch ` blob integrity checking, a 19-test adversarial regression suite, and a CI SHA-256 binding for the validator. CI also pins actions/checkout v7.0.1, disables persisted checkout credentials, and uses a five-minute timeout.
++
++This is **repository-consistency hardening only**. It does not change the canonical or post-canonical scientific status, does not consume T1431, and does not establish external or physical validation.
++
+ ## Constitutional boundary
+ 
+ **Reality outranks the model. Survival is not proof. Internal synthetic success does not grant external authority.**
+--- a/post-canonical/ROADMAP.md
++++ b/post-canonical/ROADMAP.md
+@@ -1,13 +1,26 @@
+ # Post-Canonical Roadmap — Proposed / Unexecuted
+ 
+-**Status:** PROPOSAL ONLY
++**Status:** PROPOSAL ONLY FOR ITEMS NOT OTHERWISE RECORDED BELOW
+ **Canonical impact:** NONE
+ 
+-The next recovered named target after T1430-X62 is:
++## Recovered T1430-X63 result record — not promoted to authoritative machine state
+ 
+-- **T1430-X63 — Fork-Bloat / Governance-Adjudication / Deadline-Liveness Extreme Proofing**
++A recovered 27 September 2026 result record exists for **T1430-X63 — Fork-Bloat / Governance-Adjudication / Deadline-Liveness Extreme Proofing**.
+ 
+-Additional proposed targets recovered from planning notes:
++The recovered record reports:
++
++- **R61 WOUNDED** by fork-bloat / adjudication-liveness pressure.
++- A naive fixed-quota **R62** repair was **REJECTED**.
++- A work-conserving **R62 candidate** was a **PROVISIONAL LIMITED_SURVIVOR** only under an explicit capacity precondition.
++- Authorized demand above physical capacity requires **OVERLOAD / UNRESOLVED**.
++- Quarantine compaction without retrievable backing evidence requires **EVIDENCE_LOSS / UNRESOLVED**.
++- A compromised trusted root that is observationally indistinguishable from a legitimate producer remains **MODEL_GAP**.
++
++However, the exact original X63 harness/result artifact bytes are currently unrecovered. Therefore the authoritative machine state deliberately remains **T1430-X62 / OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR** and X63/R62 is preserved as a recovered result record rather than silently promoted.
++
++See `post-canonical/T1430-X63/README.md`.
++
++## Additional proposed targets recovered from planning notes
+ 
+ - **X64** — lossy evidence compression
+ - **X66** — proof of the wrong abstraction
+--- /dev/null
++++ b/post-canonical/T1430-X63/README.md
+@@ -0,0 +1,96 @@
++# Recovery / provenance notice
++
++This file preserves a **recovered result record** for T1430-X63. The exact original X63 harness/result artifact bytes are currently unrecovered, so this record does **not** promote the authoritative machine state beyond **T1430-X62 / OMEGA-HARD R61 / PROVISIONAL LIMITED_SURVIVOR**. Canonical ARGUS Ω remains **v0.35 / Omega-Hepta-Prime through T1422**; **T1431 remains RESERVED**. No external, physical, field, deployment, or safety validation is claimed.
++
++---
++
++# ARGUS Ω MAX-KILL — T1430-X63
++
++**Classification:** POST-CANONICAL / INTERNAL-SYNTHETIC / METHOD-LEVEL ONLY
++**Canonical release remains:** v0.35 / Omega-Hepta-Prime through T1422
++**T1431:** RESERVED
++
++## Fresh live-repository findings
++
++- `main` is unprotected.
++- No repository ruleset is active.
++- The R61 head commit is unsigned (`verified=false`, reason `unsigned`).
++- The invariant workflow passed, but it is detection-after-push rather than a required gate.
++- The workflow uses floating `actions/checkout@v4`.
++- The successful run warned that checkout v4 targets deprecated Node 20 and GitHub forced Node 24.
++- The workflow checkout was shallow (`fetch-depth: 1`, `fetch-tags: false`).
++- ChatGPT's GitHub plugin permission is set to allow all actions, but a branch-create write returned HTTP 403 `Resource not accessible by integration`; therefore the live repo was not modified.
++- Datadog is currently reported by the plugin directory as available but not installed, so no Datadog telemetry was used.
++
++## X63 first strike — R61
++
++Synthetic load:
++- critical: 20/s, 1 s deadline
++- routine: 40/s, 5 s deadline
++- adversarial fork load: 140/s
++- adjudication capacity: 100/s
++- duration: 120 s
++
++Observed:
++- max backlog: 12,000
++- backlog remaining: 12,000
++- critical served deadline-miss rate: 98.33%
++- critical p95 wait: ~57.02 s
++- routine served deadline-miss rate: 91.63%
++- routine p95 wait: ~57.00 s
++
++**Disposition:** R61 WOUNDED. Fork preservation without bounded adjudication can become a liveness-denial mechanism.
++
++## Double tap — reject naive R62 fixed quotas
++
++With legitimate critical demand at 60/s and routine at 40/s, a fixed 30/50/20 lane split leaves capacity stranded in one lane while critical work misses deadlines.
++
++Observed critical miss rate: ~98.33%.
++
++**Disposition:** fixed-lane R62 REJECTED.
++
++## Revised R62 candidate
++
++A work-conserving scheduler uses lineage-authorized class priority and earliest-deadline-first scheduling across authorized work. Quarantine receives only unused capacity and is bounded.
++
++Represented case:
++- authorized critical: 60/s
++- authorized routine: 40/s
++- quarantine/adversarial: 140/s
++- total authorized demand = capacity = 100/s
++
++Observed:
++- critical deadline misses: 0
++- routine deadline misses: 0
++
++**Disposition:** PROVISIONAL LIMITED_SURVIVOR **only with an explicit capacity precondition**.
++
++## Hard boundary — authorized overload
++
++When authorized load becomes 80/s critical + 40/s routine = 120/s against 100/s capacity, deadline guarantees fail. That is a physical resource impossibility, not something governance logic can solve.
++
++**Required terminal state:** OVERLOAD / UNRESOLVED.
++
++## Remaining wounds / MODEL_GAPs
++
++- A compromised trusted authority root that is observationally indistinguishable from a legitimate producer remains **MODEL_GAP**.
++- Quarantine compaction that cannot later recover the full evidence must become **EVIDENCE_LOSS / UNRESOLVED**, not a silent tombstone-only PASS.
++- Lineage classification itself becomes part of the effective TCB.
++- Hosted-runner identity, runtime substitution, and third-party action execution remain dynamic dependencies.
++- Branch governance remains a live repo wound until protected outside the repository content.
++
++
++## Final tap — quarantine prefill suppression
++
++A bounded FIFO quarantine was prefilled with 140 junk events/s while only 20/s could be adjudicated. A single rare untrusted disconfirming event was injected at 10 s.
++
++Observed:
++- rare event full payload retained: **No**
++- events compacted by the end of the 20 s run: **2,202**
++- queue remained near its 200-item cap
++
++A tombstone or commitment can prove that an item existed, but cannot support later substantive adjudication unless the original payload is durably retrievable.
++
++**Disposition:** the revised R62 candidate requires a **retrievable evidence backing-store / retention contract**. Without it, the correct state is **EVIDENCE_LOSS / UNRESOLVED**, not PASS.
++
++No external, physical, field, deployment, or safety validation is claimed. Reality veto remains absolute.
